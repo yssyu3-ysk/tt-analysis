@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111827">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-touch-fullscreen" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<title>卓球 試合分析ツール</title>
+<style>
+:root{--bg:#f3f4f6;--card:#fff;--ink:#111827;--muted:#6b7280;--line:#d1d5db;--accent:#2563eb;--danger:#dc2626;--ok:#059669}
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{position:sticky;top:0;z-index:20;background:#111827;color:white;padding:10px 12px calc(10px + env(safe-area-inset-top));box-shadow:0 2px 8px #0002}
+h1{font-size:18px;margin:0 0 5px}.topline{display:flex;justify-content:space-between;align-items:center;gap:8px}.small{font-size:12px;color:#cbd5e1}
+main{max-width:1100px;margin:auto;padding:10px 10px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0;box-shadow:0 1px 2px #0000000b}
+.video-wrap{position:relative;background:#000;border-radius:12px;overflow:hidden}
+video{display:block;width:100%;max-height:55vh;background:#000}
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:8px}
+button,select,input,textarea{font:inherit}
+button{border:0;border-radius:10px;padding:11px 10px;background:#e5e7eb;color:#111827;font-weight:700;min-height:44px}
+button.primary{background:var(--accent);color:white}.danger{background:#fee2e2;color:#991b1b}.ok{background:#d1fae5;color:#065f46}
+button:active{transform:scale(.98)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;font-weight:700}
+input,select,textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px;background:white}
+.score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;text-align:center}
+.score .num{font-size:42px;font-weight:800;line-height:1}.score .name{font-size:13px;font-weight:700}.dash{font-size:24px;color:var(--muted)}
+.game-tabs{display:flex;gap:6px;overflow:auto}.game-tab{min-width:64px}.game-tab.active{background:#dbeafe;color:#1d4ed8}
+.point-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.winner{font-size:16px;padding:15px}.me{background:#dbeafe;color:#1d4ed8}.opp{background:#fee2e2;color:#b91c1c}
+.cause-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.cause{background:#f9fafb;border:1px solid var(--line);text-align:left;font-size:13px}.cause.selected{background:#dbeafe;border-color:#2563eb;color:#1d4ed8}
+.meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.pill{background:#eef2ff;padding:5px 8px;border-radius:999px}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{border-bottom:1px solid #e5e7eb;padding:7px;text-align:left}th{position:sticky;top:0;background:#f9fafb}
+.scroll{overflow:auto;max-height:340px}.right{text-align:right}.hidden{display:none!important}
+details summary{font-weight:800;cursor:pointer;padding:4px 0}
+footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
+@media(min-width:800px){.layout{display:grid;grid-template-columns:1.25fr .75fr;gap:10px}.span2{grid-column:1/-1}.cause-grid{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="topline"><h1>🏓 卓球 試合分析ツール</h1><span id="status" class="small">ローカル処理</span></div>
+  <div class="small">動画は端末内だけで再生・解析します。サーバーへアップロードしません。</div>
+</header>
+
+<main>
+<div class="layout">
+<section>
+  <div class="card">
+    <label>試合動画</label>
+    <input id="videoFile" type="file" accept="video/*,.mp4,.mov,.m4v,.webm">
+    <div class="video-wrap" style="margin-top:8px"><video id="video" playsinline webkit-playsinline controls preload="metadata"></video></div>
+    <div class="controls">
+      <button id="playBtn" class="primary">▶ 再生</button>
+      <button id="backBtn">↶ 5秒戻る</button>
+      <button id="fwdBtn">5秒進む ↷</button>
+    </div>
+    <div class="meta" style="margin-top:8px">
+      <span class="pill">現在 <b id="time">0:00.0</b></span>
+      <span class="pill">点 <b id="pointNo">1</b></span>
+      <span class="pill">ゲーム <b id="gameNo">1</b></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="score">
+      <div><div class="name" id="meName">自分</div><div class="num" id="meScore">0</div></div>
+      <div class="dash">-</div>
+      <div><div class="name" id="oppName">相手</div><div class="num" id="oppScore">0</div></div>
+    </div>
+    <div class="meta" style="justify-content:center;margin-top:7px">
+      <span class="pill">ゲーム <b id="gameScore">0 - 0</b></span>
+      <span class="pill">次のサーバー: <b id="serverNow">—</b></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>この点の勝者を選択</label>
+    <div class="point-actions">
+      <button class="winner me" id="winMe">自分の得点</button>
+      <button class="winner opp" id="winOpp">相手の得点</button>
+    </div>
+    <div id="causeArea" class="hidden" style="margin-top:12px">
+      <label>得点・失点の主な原因</label>
+      <div id="causes" class="cause-grid"></div>
+      <div style="margin-top:8px"><label>メモ（任意）</label><textarea id="note" rows="2" placeholder="例：バック対バックで先にミドルへ打ち切れなかった"></textarea></div>
+      <button id="savePoint" class="primary" style="width:100%;margin-top:8px">この点を記録</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>ゲーム</label>
+    <div id="gameTabs" class="game-tabs"></div>
+    <div style="margin-top:8px" class="grid2">
+      <button id="newGame" class="ok">次のゲームへ</button>
+      <button id="undo" class="danger">直前の記録を取り消す</button>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <label>ゲーム1の最初のサーバー</label>
+    <div class="grid2">
+      <button id="serveMe">自分</button><button id="serveOpp">相手</button>
+    </div>
+    <div class="small" style="margin-top:7px;color:#6b7280">ゲーム2以降は前ゲームの最初のサーバーを自動的に交替。各ゲーム内は2本交替、10-10以降は1本交替です。</div>
+  </div>
+
+  <div class="card">
+    <details open>
+      <summary>選択肢をカスタマイズ</summary>
+      <div style="margin-top:10px">
+        <label>原因（1行1項目）</label>
+        <textarea id="causeConfig" rows="9"></textarea>
+        <div class="grid2" style="margin-top:8px"><button id="applyConfig" class="primary">反映</button><button id="resetConfig">初期値に戻す</button></div>
+      </div>
+      <div style="margin-top:12px">
+        <label>選手名</label>
+        <div class="grid2"><input id="meInput" placeholder="自分"><input id="oppInput" placeholder="相手"></div>
+        <button id="applyNames" style="width:100%;margin-top:8px">名前を反映</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details open>
+      <summary>記録</summary>
+      <div class="scroll" style="margin-top:8px"><table><thead><tr><th>G</th><th>点</th><th>時刻</th><th>勝者</th><th>サーブ</th><th>原因</th></tr></thead><tbody id="log"></tbody></table></div>
+      <div class="grid2" style="margin-top:8px"><button id="exportJson">JSON保存</button><button id="exportCsv">CSV保存</button></div>
+      <input id="importJson" type="file" accept=".json,application/json" class="hidden">
+      <button id="importBtn" style="width:100%;margin-top:7px">JSON読込</button>
+    </details>
+  </div>
+
+  <div class="card">
+    <label>試合結果 / 原因分析</label>
+    <div id="result"></div>
+  </div>
+</section>
+</div>
+<footer>データはブラウザのlocalStorageにも保存されます。動画ファイル自体は保存・送信しません。</footer>
+</main>
+
+<script>
+const DEFAULT_CAUSES=[
+"サービスミス","レシーブミス","3球目攻撃ミス","4球目攻撃ミス",
+"ラリー中のミス","台上技術ミス","攻撃の質不足","守備ミス",
+"判断・戦術","相手のナイスプレー","ネット・エッジ等","その他"
+];
+const state={
+ me:"自分",opp:"相手", firstServer:null, currentGame:1, gameWinsMe:0, gameWinsOpp:0,
+ games:[{me:0,opp:0,points:[]}], selectedWinner:null, selectedCause:null,
+ causes:JSON.parse(localStorage.getItem("tt_causes")||"null")||DEFAULT_CAUSES
+};
+const $=id=>document.getElementById(id);
+const video=$("video");
+function save(){localStorage.setItem("tt_state",JSON.stringify({...state,selectedWinner:null,selectedCause:null}));}
+function load(){
+ const s=JSON.parse(localStorage.getItem("tt_state")||"null"); if(!s)return;
+ Object.assign(state,s); if(!state.games?.length)state.games=[{me:0,opp:0,points:[]}];
+ state.causes=state.causes?.length?state.causes:DEFAULT_CAUSES;
+}
+function fmt(t){if(!isFinite(t))return "0:00.0";let m=Math.floor(t/60),sec=(t%60).toFixed(1).padStart(4,"0");return `${m}:${sec}`;}
+function current(){return state.games[state.currentGame-1];}
+function totalPoints(g){return g.me+g.opp;}
+function serverForPoint(g){
+ if(state.firstServer===null)return null;
+ let first=(state.currentGame%2===1)?state.firstServer:(state.firstServer==="me"?"opp":"me");
+ let n=totalPoints(g);
+ let interval=(g.me>=10&&g.opp>=10)?1:2;
+ return ((Math.floor(n/interval)%2===0)?first:(first==="me"?"opp":"me"));
+}
+function renderCauses(){
+ $("causes").innerHTML="";
+ state.causes.forEach(c=>{let b=document.createElement("button");b.className="cause"+(state.selectedCause===c?" selected":"");b.textContent=c;b.onclick=()=>{state.selectedCause=c;renderCauses()};$("causes").appendChild(b)});
+}
+function render(){
+ const g=current();
+ $("meName").textContent=state.me;$("oppName").textContent=state.opp;
+ $("meScore").textContent=g.me;$("oppScore").textContent=g.opp;
+ $("gameNo").textContent=state.currentGame;$("pointNo").textContent=totalPoints(g)+1;
+ $("gameScore").textContent=`${state.gameWinsMe} - ${state.gameWinsOpp}`;
+ $("serverNow").textContent=serverForPoint(g)?(serverForPoint(g)==="me"?state.me:state.opp):"未設定";
+ $("meInput").value=state.me;$("oppInput").value=state.opp;
+ $("causeConfig").value=state.causes.join("\\n");
+ $("causeArea").classList.toggle("hidden",!state.selectedWinner);
+ renderCauses(); renderTabs(); renderLog(); renderResult();
+}
+function renderTabs(){
+ $("gameTabs").innerHTML="";
+ for(let i=1;i<=5;i++){let b=document.createElement("button");b.className="game-tab"+(i===state.currentGame?" active":"");b.textContent=`G${i}`;b.onclick=()=>{if(state.games[i-1]){state.currentGame=i;state.selectedWinner=null;state.selectedCause=null;render()}};$("gameTabs").appendChild(b)}
+}
+function renderLog(){
+ let rows=[];state.games.forEach((g,gi)=>g.points.forEach((p,pi)=>rows.push(`<tr><td>G${gi+1}</td><td>${pi+1}</td><td>${fmt(p.time)}</td><td>${p.winner==="me"?state.me:state.opp}</td><td>${p.server==="me"?state.me:state.opp}</td><td>${escapeHtml(p.cause||"—")}</td></tr>`)));
+ $("log").innerHTML=rows.join("")||'<tr><td colspan="6">まだ記録がありません</td></tr>';
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+function renderResult(){
+ let html=`<div class="score" style="margin-bottom:12px"><div><b>${escapeHtml(state.me)}</b><div class="num" style="font-size:32px">${state.gameWinsMe}</div></div><div>ゲーム</div><div><b>${escapeHtml(state.opp)}</b><div class="num" style="font-size:32px">${state.gameWinsOpp}</div></div></div>`;
+ let all=state.games.flatMap(g=>g.points);
+ const count={};all.forEach(p=>{let k=p.winner==="me"?"得点":"失点";count[k]??={};count[k][p.cause]=(count[k][p.cause]||0)+1});
+ html+=`<h3 style="margin:8px 0">原因別</h3>`;
+ for(const side of ["得点","失点"]){html+=`<b>${side}</b><ul>`;let obj=count[side]||{};let entries=Object.entries(obj).sort((a,b)=>b[1]-a[1]);html+=entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}点</li>`).join("")||"<li>—</li>";html+="</ul>"}
+ html+=`<h3 style="margin:8px 0">ゲーム別</h3><ul>`+state.games.map((g,i)=>`<li>G${i+1}: ${g.me}-${g.opp}</li>`).join("")+"</ul>";
+ $("result").innerHTML=html;
+}
+function maybeGameWon(){
+ const g=current(); let won=null;
+ if((g.me>=11||g.opp>=11)&&Math.abs(g.me-g.opp)>=2) won=g.me>g.opp?"me":"opp";
+ if(won){if(won==="me")state.gameWinsMe++;else state.gameWinsOpp++;render();save();
+   if(state.gameWinsMe>=3||state.gameWinsOpp>=3){alert("試合終了です。結果欄を確認してください。");return;}
+   setTimeout(()=>{if(confirm(`G${state.currentGame}は${won==="me"?state.me:state.opp}が取得。次のゲームへ進みますか？`)){state.currentGame++;state.games.push({me:0,opp:0,points:[]});state.selectedWinner=null;state.selectedCause=null;render();save();}},50);
+ }
+}
+function recordPoint(){
+ if(!state.selectedWinner||!state.selectedCause){alert("勝者と原因を選択してください。");return}
+ const g=current(), winner=state.selectedWinner;
+ if(winner==="me")g.me++;else g.opp++;
+ g.points.push({winner,cause:state.selectedCause,note:$("note").value,time:video.currentTime||0,server:serverForPoint(g)});
+ state.selectedWinner=null;state.selectedCause=null;$("note").value="";
+ maybeGameWon();render();save();
+}
+$("videoFile").onchange=e=>{let f=e.target.files[0];if(f){video.src=URL.createObjectURL(f);video.load();$("status").textContent="動画読込済（端末内）"}};
+$("playBtn").onclick=()=>video.paused?video.play():video.pause();
+video.onplay=()=>$("playBtn").textContent="⏸ 一時停止";video.onpause=()=>$("playBtn").textContent="▶ 再生";
+video.ontimeupdate=()=>{$("time").textContent=fmt(video.currentTime)};
+$("backBtn").onclick=()=>video.currentTime=Math.max(0,video.currentTime-5);
+$("fwdBtn").onclick=()=>video.currentTime=Math.min(video.duration||1,video.currentTime+5);
+$("winMe").onclick=()=>{state.selectedWinner="me";state.selectedCause=null;render()};
+$("winOpp").onclick=()=>{state.selectedWinner="opp";state.selectedCause=null;render()};
+$("savePoint").onclick=recordPoint;
+$("serveMe").onclick=()=>{if(state.games.some(g=>g.points.length)){alert("ゲーム開始後は変更できません。");return}state.firstServer="me";save();render()};
+$("serveOpp").onclick=()=>{if(state.games.some(g=>g.points.length)){alert("ゲーム開始後は変更できません。");return}state.firstServer="opp";save();render()};
+$("newGame").onclick=()=>{if(state.gameWinsMe>=3||state.gameWinsOpp>=3){alert("試合は終了しています。");return}if(current().points.length===0){alert("現在のゲームに記録がありません。");return}if(current().me<11&&current().opp<11||Math.abs(current().me-current().opp)<2){alert("まだゲーム終了条件を満たしていません。");return}if(state.currentGame<5){state.currentGame++;if(!state.games[state.currentGame-1])state.games.push({me:0,opp:0,points:[]});state.selectedWinner=null;state.selectedCause=null;render();save()}};
+$("undo").onclick=()=>{let g=current();if(!g.points.length){alert("取り消す記録がありません。");return}let p=g.points.pop();if(p.winner==="me")g.me--;else g.opp--;state.selectedWinner=null;state.selectedCause=null;render();save()};
+$("applyConfig").onclick=()=>{let a=$("causeConfig").value.split("\\n").map(x=>x.trim()).filter(Boolean);if(!a.length){alert("原因を1つ以上入力してください。");return}state.causes=a;localStorage.setItem("tt_causes",JSON.stringify(a));render();save()};
+$("resetConfig").onclick=()=>{state.causes=[...DEFAULT_CAUSES];localStorage.setItem("tt_causes",JSON.stringify(state.causes));render();save()};
+$("applyNames").onclick=()=>{state.me=$("meInput").value.trim()||"自分";state.opp=$("oppInput").value.trim()||"相手";save();render()};
+function download(name,text,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+$("exportJson").onclick=()=>download("tabletennis-analysis.json",JSON.stringify(state,null,2),"application/json");
+$("exportCsv").onclick=()=>{let rows=[["ゲーム","点","動画時刻","勝者","サーバー","原因","メモ"]];state.games.forEach((g,gi)=>g.points.forEach((p,pi)=>rows.push([gi+1,pi+1,fmt(p.time),p.winner==="me"?state.me:state.opp,p.server==="me"?state.me:state.opp,p.cause||"",p.note||""])));let csv="\\ufeff"+rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\\n");download("tabletennis-analysis.csv",csv,"text/csv;charset=utf-8")};
+$("importBtn").onclick=()=>$("importJson").click();
+$("importJson").onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let s=JSON.parse(r.result);Object.assign(state,s);render();save();alert("読み込みました。")}catch(err){alert("JSONを読み込めませんでした。")}};r.readAsText(f)};
+load();render();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
