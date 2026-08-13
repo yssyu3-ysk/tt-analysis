@@ -139,9 +139,9 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
     <details open>
       <summary>選択肢をカスタマイズ</summary>
       <div style="margin-top:10px">
-        <label>得点の原因（1行1項目）</label>
+        <label>得点の原因（1行1項目・v9標準11項目）</label>
         <textarea id="causeConfigMe" rows="7"></textarea>
-        <label style="margin-top:8px">失点の原因（1行1項目）</label>
+        <label style="margin-top:8px">失点の原因（1行1項目・v9標準9項目）</label>
         <textarea id="causeConfigOpp" rows="8"></textarea>
         <div class="grid2" style="margin-top:8px"><button id="applyConfig" class="primary">反映</button><button id="resetConfig">初期値に戻す</button></div>
       </div>
@@ -190,7 +190,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 
 const DEFAULT_CAUSES={
  me:["サービスエース","台上技術","ドライブ","スマッシュ","ショート、プッシュ","ブロック、カウンター","相手のブロックミス","相手のレシーブミス","相手の台上ミス","相手の強打ミス","相手の凡ミス"],
- opp:["台上技術","強打","レシーブミス","台上ミス","ブロックミス","つなぎドライブミス","ドライブ強打ミス","スマッシュミス"]
+ opp:["サービスミス","台上技術","強打","レシーブミス","台上ミス","ブロックミス","つなぎドライブミス","ドライブ強打ミス","スマッシュミス"]
 };
 const BALL_LABELS=["","1球目","2球目","3球目","4球目","5球目以降"];
 const state={
@@ -199,6 +199,14 @@ const state={
  games:[{me:0,opp:0,points:[]}], selectedWinner:null, selectedCause:null, selectedBall:null,
  causes:JSON.parse(localStorage.getItem("tt_causes")||"null")||JSON.parse(JSON.stringify(DEFAULT_CAUSES))
 };
+
+// v9: migrate old saved cause categories once. After migration, user customizations are preserved.
+const CAUSE_SCHEMA_VERSION = "9";
+if(localStorage.getItem("tt_causes_version") !== CAUSE_SCHEMA_VERSION){
+  state.causes = JSON.parse(JSON.stringify(DEFAULT_CAUSES));
+  localStorage.setItem("tt_causes", JSON.stringify(state.causes));
+  localStorage.setItem("tt_causes_version", CAUSE_SCHEMA_VERSION);
+}
 const $=id=>document.getElementById(id);
 const video=$("video");
 
@@ -264,8 +272,15 @@ function loadCurrent(){
  if(!s)return;
  Object.assign(state,s);
  state.games=state.games?.length?state.games:[{me:0,opp:0,points:[]}];
- if(Array.isArray(state.causes)){ state.causes={me:[...state.causes],opp:[...DEFAULT_CAUSES.opp]}; }
- state.causes=state.causes?.me?.length?state.causes:{me:[...DEFAULT_CAUSES.me],opp:[...DEFAULT_CAUSES.opp]};
+ // Any match saved before v9 gets the new fixed categories. New custom categories are preserved.
+ if(!state.causes || !Array.isArray(state.causes.me) || !Array.isArray(state.causes.opp)){
+   state.causes=JSON.parse(JSON.stringify(DEFAULT_CAUSES));
+ }
+ if(localStorage.getItem("tt_causes_version") !== CAUSE_SCHEMA_VERSION){
+   state.causes=JSON.parse(JSON.stringify(DEFAULT_CAUSES));
+   localStorage.setItem("tt_causes",JSON.stringify(state.causes));
+   localStorage.setItem("tt_causes_version",CAUSE_SCHEMA_VERSION);
+ }
  state.games.forEach(g=>g.points.forEach(p=>{if(!p.ball)p.ball=5}));
  updateGameWins();
 }
@@ -521,7 +536,7 @@ $("applyConfig").onclick=()=>{
  if(!me.length||!opp.length){alert("得点・失点の原因をそれぞれ1つ以上入力してください。");return}
  state.causes={me,opp};localStorage.setItem("tt_causes",JSON.stringify(state.causes));saveCurrent();render()
 };
-$("resetConfig").onclick=()=>{state.causes=JSON.parse(JSON.stringify(DEFAULT_CAUSES));localStorage.setItem("tt_causes",JSON.stringify(state.causes));saveCurrent();render()};
+$("resetConfig").onclick=()=>{state.causes=JSON.parse(JSON.stringify(DEFAULT_CAUSES));localStorage.setItem("tt_causes",JSON.stringify(state.causes));localStorage.setItem("tt_causes_version",CAUSE_SCHEMA_VERSION);saveCurrent();render()};
 $("applyNames").onclick=()=>{state.me=$("meInput").value.trim()||"自分";state.opp=$("oppInput").value.trim()||"相手";$("matchOpponent").value=state.opp;saveCurrent();render()};
 
 $("saveMatch").onclick=()=>{
@@ -572,56 +587,6 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   });
 }
-</script>
-
-<script>
-/* v8: fixed cause categories */
-window.TT_GAIN_CAUSES = [
-  "サービスエース","台上技術","ドライブ","スマッシュ","ショート、プッシュ",
-  "ブロック、カウンター","相手のブロックミス","相手のレシーブミス",
-  "相手の台上ミス","相手の強打ミス","相手の凡ミス"
-];
-window.TT_LOSS_CAUSES = [
-  "サービスミス","台上技術","強打","レシーブミス","台上ミス",
-  "ブロックミス","つなぎドライブミス","ドライブ強打ミス","スマッシュミス"
-];
-</script>
-
-
-<script>
-(function(){
-  const G = window.TT_GAIN_CAUSES, L = window.TT_LOSS_CAUSES;
-  function isCauseSelect(s){
-    const t = ((s.name||"")+" "+(s.id||"")+" "+(s.getAttribute("aria-label")||"")).toLowerCase();
-    return /cause|reason|原因/.test(t);
-  }
-  function fill(select, arr){
-    if(!select || !arr) return;
-    const current = select.value;
-    select.innerHTML = "";
-    arr.forEach(v=>{
-      const o=document.createElement("option");
-      o.value=v; o.textContent=v; select.appendChild(o);
-    });
-    if(arr.includes(current)) select.value=current;
-  }
-  function refresh(){
-    document.querySelectorAll("select").forEach(s=>{
-      if(!isCauseSelect(s)) return;
-      const context=((s.closest("form,section,div")||document.body).innerText||"");
-      const isLoss=/失点|失敗|loss|miss/.test(context) && !/得点/.test(context);
-      fill(s, isLoss ? L : G);
-    });
-  }
-  document.addEventListener("change", e=>{
-    if(e.target && /得点|失点/.test((e.target.value||"")+" "+(e.target.name||""))){
-      setTimeout(refresh,0);
-    }
-  });
-  new MutationObserver(refresh).observe(document.documentElement,{childList:true,subtree:true});
-  window.addEventListener("load", refresh);
-  setTimeout(refresh,300);
-})();
 </script>
 
 </body>
