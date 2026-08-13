@@ -38,6 +38,17 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border-bottom:1px
 details summary{font-weight:800;cursor:pointer;padding:4px 0}
 footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 @media(min-width:800px){.layout{display:grid;grid-template-columns:1.25fr .75fr;gap:10px}.span2{grid-column:1/-1}.cause-grid{grid-template-columns:repeat(3,1fr)}}
+
+.modal{position:fixed;inset:0;z-index:100;background:#111827ee;overflow:auto;padding:10px}
+.dashboard{max-width:1100px;margin:auto;background:#f8fafc;border-radius:16px;padding:14px;min-height:100%}
+.dashboard-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.dash-title{font-size:22px;font-weight:900}.dash-sub{font-size:12px;color:#64748b;margin-top:3px}
+.dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.dash-card{background:white;border:1px solid #dbe1e8;border-radius:12px;padding:12px}
+.dash-card h3{font-size:13px;margin:0 0 8px}.big{font-size:32px;font-weight:900}.dash-table{width:100%;border-collapse:collapse;font-size:12px}.dash-table th,.dash-table td{padding:7px;border-bottom:1px solid #e5e7eb}.barrow{display:grid;grid-template-columns:78px 1fr 28px;gap:6px;align-items:center;margin:5px 0;font-size:11px}.bar{height:12px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar>i{display:block;height:100%;background:#2563eb}.muted{color:#64748b}
+.match-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px;margin:6px 0;background:#fafafa}
+.match-row .info{min-width:0}.match-row .title{font-weight:800}.match-row .sub{font-size:11px;color:var(--muted);margin-top:2px}.match-row .actions{display:flex;gap:5px}.match-row button{min-height:36px;padding:7px 9px;font-size:12px}
+@media(min-width:700px){.dash-grid{grid-template-columns:repeat(4,1fr)}}
+@media print{body>*:not(#dashboardModal){display:none!important}.modal{position:static;background:white;padding:0}.dashboard{box-shadow:none}}
 </style>
 </head>
 <body>
@@ -49,6 +60,16 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 <main>
 <div class="layout">
 <section>
+  <div class="card">
+    <label>試合情報</label>
+    <div class="grid2">
+      <div><label>試合日</label><input id="matchDate" type="date"></div>
+      <div><label>対戦相手</label><input id="matchOpponent" placeholder="相手選手名"></div>
+    </div>
+    <div style="margin-top:8px"><label>試合メモ</label><textarea id="matchMemo" rows="2" placeholder="大会名、会場、練習試合など"></textarea></div>
+    <button id="saveMatch" class="primary" style="width:100%;margin-top:8px">💾 この試合を保存</button>
+  </div>
+
   <div class="card">
     <label>試合動画</label>
     <input id="videoFile" type="file" accept="video/*,.mp4,.mov,.m4v,.webm">
@@ -84,7 +105,9 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
       <button class="winner opp" id="winOpp">相手の得点</button>
     </div>
     <div id="causeArea" class="hidden" style="margin-top:12px">
-      <label>得点・失点の主な原因</label>
+      <label>何球目で得点・失点したか</label>
+      <div id="ballNumbers" class="cause-grid"></div>
+      <label style="margin-top:12px">得点・失点の主な原因</label>
       <div id="causes" class="cause-grid"></div>
       <div style="margin-top:8px"><label>メモ（任意）</label><textarea id="note" rows="2" placeholder="例：バック対バックで先にミドルへ打ち切れなかった"></textarea></div>
       <button id="savePoint" class="primary" style="width:100%;margin-top:8px">この点を記録</button>
@@ -129,10 +152,24 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
   <div class="card">
     <details open>
       <summary>記録</summary>
-      <div class="scroll" style="margin-top:8px"><table><thead><tr><th>G</th><th>点</th><th>時刻</th><th>勝者</th><th>サーブ</th><th>原因</th></tr></thead><tbody id="log"></tbody></table></div>
+      <div class="scroll" style="margin-top:8px"><table><thead><tr><th>G</th><th>点</th><th>時刻</th><th>勝者</th><th>サーブ</th><th>何球目</th><th>原因</th></tr></thead><tbody id="log"></tbody></table></div>
       <div class="grid2" style="margin-top:8px"><button id="exportJson">JSON保存</button><button id="exportCsv">CSV保存</button></div>
+      <button id="dashboardBtn" class="primary" style="width:100%;margin-top:7px">📊 スクショ用ダッシュボード</button>
       <input id="importJson" type="file" accept=".json,application/json" class="hidden">
       <button id="importBtn" style="width:100%;margin-top:7px">JSON読込</button>
+    </details>
+  </div>
+
+  <div class="card">
+    <details open>
+      <summary>保存した試合を管理</summary>
+      <div style="margin-top:8px">
+        <div class="grid2">
+          <button id="newMatch">＋ 新しい試合</button>
+          <button id="clearAllMatches" class="danger">保存データを全削除</button>
+        </div>
+        <div id="matchList" style="margin-top:8px"></div>
+      </div>
     </details>
   </div>
 
@@ -146,107 +183,309 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 </main>
 
 <script>
+
 const DEFAULT_CAUSES=[
-"サービスミス","レシーブミス","3球目攻撃ミス","4球目攻撃ミス",
-"ラリー中のミス","台上技術ミス","攻撃の質不足","守備ミス",
-"判断・戦術","相手のナイスプレー","ネット・エッジ等","その他"
+"サービスミス","レシーブミス","台上技術ミス","攻撃ミス","守備ミス",
+"ラリー中のミス","判断・戦術","相手のナイスプレー","ネット・エッジ等","その他"
 ];
+const BALL_LABELS=["","1球目","2球目","3球目","4球目","5球目以降"];
 const state={
- me:"自分",opp:"相手", firstServer:null, currentGame:1, gameWinsMe:0, gameWinsOpp:0,
- games:[{me:0,opp:0,points:[]}], selectedWinner:null, selectedCause:null,
+ id:null, date:"", me:"自分", opp:"相手", matchMemo:"",
+ firstServer:null, currentGame:1, gameWinsMe:0, gameWinsOpp:0,
+ games:[{me:0,opp:0,points:[]}], selectedWinner:null, selectedCause:null, selectedBall:null,
  causes:JSON.parse(localStorage.getItem("tt_causes")||"null")||DEFAULT_CAUSES
 };
 const $=id=>document.getElementById(id);
 const video=$("video");
-function save(){localStorage.setItem("tt_state",JSON.stringify({...state,selectedWinner:null,selectedCause:null}));}
-function load(){
- const s=JSON.parse(localStorage.getItem("tt_state")||"null"); if(!s)return;
- Object.assign(state,s); if(!state.games?.length)state.games=[{me:0,opp:0,points:[]}];
- state.causes=state.causes?.length?state.causes:DEFAULT_CAUSES;
-}
-function fmt(t){if(!isFinite(t))return "0:00.0";let m=Math.floor(t/60),sec=(t%60).toFixed(1).padStart(4,"0");return `${m}:${sec}`;}
-function current(){return state.games[state.currentGame-1];}
-function totalPoints(g){return g.me+g.opp;}
-function serverForPoint(g){
+
+function uid(){return "m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)}
+function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function fmt(t){if(!isFinite(t))return "0:00.0";let m=Math.floor(t/60),sec=(t%60).toFixed(1).padStart(4,"0");return `${m}:${sec}`}
+function current(){return state.games[state.currentGame-1]}
+function totalPoints(g){return g.me+g.opp}
+function gameWinner(g){return ((g.me>=11||g.opp>=11)&&Math.abs(g.me-g.opp)>=2)?(g.me>g.opp?"me":"opp"):null}
+function updateGameWins(){state.gameWinsMe=state.games.filter(g=>gameWinner(g)==="me").length;state.gameWinsOpp=state.games.filter(g=>gameWinner(g)==="opp").length}
+function firstServerForGame(gameIndex){
  if(state.firstServer===null)return null;
- let first=(state.currentGame%2===1)?state.firstServer:(state.firstServer==="me"?"opp":"me");
- let n=totalPoints(g);
- let interval=(g.me>=10&&g.opp>=10)?1:2;
- return ((Math.floor(n/interval)%2===0)?first:(first==="me"?"opp":"me"));
+ return gameIndex%2===1 ? state.firstServer : (state.firstServer==="me"?"opp":"me");
+}
+function serverForPoint(g){
+ const first=firstServerForGame(state.currentGame);
+ if(!first)return null;
+ const n=totalPoints(g);
+ const interval=(g.me>=10&&g.opp>=10)?1:2;
+ return (Math.floor(n/interval)%2===0)?first:(first==="me"?"opp":"me");
+}
+function renderBallNumbers(){
+ $("ballNumbers").innerHTML="";
+ BALL_LABELS.slice(1).forEach((label,i)=>{
+   const b=document.createElement("button");
+   b.className="cause"+(state.selectedBall===i+1?" selected":"");
+   b.textContent=label;
+   b.onclick=()=>{state.selectedBall=i+1;renderBallNumbers()};
+   $("ballNumbers").appendChild(b);
+ });
 }
 function renderCauses(){
  $("causes").innerHTML="";
- state.causes.forEach(c=>{let b=document.createElement("button");b.className="cause"+(state.selectedCause===c?" selected":"");b.textContent=c;b.onclick=()=>{state.selectedCause=c;renderCauses()};$("causes").appendChild(b)});
+ state.causes.forEach(c=>{
+   const b=document.createElement("button");
+   b.className="cause"+(state.selectedCause===c?" selected":"");
+   b.textContent=c;
+   b.onclick=()=>{state.selectedCause=c;renderCauses()};
+   $("causes").appendChild(b);
+ });
 }
+function getLibrary(){return JSON.parse(localStorage.getItem("tt_match_library")||"[]")}
+function saveLibrary(list){localStorage.setItem("tt_match_library",JSON.stringify(list))}
+function snapshot(){
+ return JSON.parse(JSON.stringify({
+   id:state.id,date:state.date,me:state.me,opp:state.opp,matchMemo:state.matchMemo,
+   firstServer:state.firstServer,currentGame:state.currentGame,gameWinsMe:state.gameWinsMe,
+   gameWinsOpp:state.gameWinsOpp,games:state.games,causes:state.causes
+ }))
+}
+function saveCurrent(){
+ if(!state.id)state.id=uid();
+ const data=snapshot();
+ localStorage.setItem("tt_state",JSON.stringify(data));
+ const list=getLibrary();
+ const i=list.findIndex(x=>x.id===state.id);
+ if(i>=0)list[i]=data;else list.unshift(data);
+ saveLibrary(list);
+}
+function loadCurrent(){
+ const s=JSON.parse(localStorage.getItem("tt_state")||"null");
+ if(!s)return;
+ Object.assign(state,s);
+ state.games=state.games?.length?state.games:[{me:0,opp:0,points:[]}];
+ state.causes=state.causes?.length?state.causes:DEFAULT_CAUSES;
+ state.games.forEach(g=>g.points.forEach(p=>{if(!p.ball)p.ball=5}));
+ updateGameWins();
+}
+function clearSelection(){state.selectedWinner=null;state.selectedCause=null;state.selectedBall=null}
 function render(){
  const g=current();
+ updateGameWins();
  $("meName").textContent=state.me;$("oppName").textContent=state.opp;
  $("meScore").textContent=g.me;$("oppScore").textContent=g.opp;
  $("gameNo").textContent=state.currentGame;$("pointNo").textContent=totalPoints(g)+1;
  $("gameScore").textContent=`${state.gameWinsMe} - ${state.gameWinsOpp}`;
- $("serverNow").textContent=serverForPoint(g)?(serverForPoint(g)==="me"?state.me:state.opp):"未設定";
+ const s=serverForPoint(g);$("serverNow").textContent=s?(s==="me"?state.me:state.opp):"未設定";
  $("meInput").value=state.me;$("oppInput").value=state.opp;
- $("causeConfig").value=state.causes.join("\\n");
+ $("matchDate").value=state.date||"";
+ $("matchOpponent").value=state.opp||"";
+ $("matchMemo").value=state.matchMemo||"";
+ $("causeConfig").value=state.causes.join("\n");
  $("causeArea").classList.toggle("hidden",!state.selectedWinner);
- renderCauses(); renderTabs(); renderLog(); renderResult();
+ renderBallNumbers();renderCauses();renderTabs();renderLog();renderResult();renderMatchList();
 }
 function renderTabs(){
  $("gameTabs").innerHTML="";
- for(let i=1;i<=5;i++){let b=document.createElement("button");b.className="game-tab"+(i===state.currentGame?" active":"");b.textContent=`G${i}`;b.onclick=()=>{if(state.games[i-1]){state.currentGame=i;state.selectedWinner=null;state.selectedCause=null;render()}};$("gameTabs").appendChild(b)}
+ for(let i=1;i<=5;i++){
+   let b=document.createElement("button");
+   b.className="game-tab"+(i===state.currentGame?" active":"");
+   b.textContent=`G${i}`;
+   b.onclick=()=>{if(state.games[i-1]){state.currentGame=i;clearSelection();render()}};
+   $("gameTabs").appendChild(b);
+ }
 }
 function renderLog(){
- let rows=[];state.games.forEach((g,gi)=>g.points.forEach((p,pi)=>rows.push(`<tr><td>G${gi+1}</td><td>${pi+1}</td><td>${fmt(p.time)}</td><td>${p.winner==="me"?state.me:state.opp}</td><td>${p.server==="me"?state.me:state.opp}</td><td>${escapeHtml(p.cause||"—")}</td></tr>`)));
- $("log").innerHTML=rows.join("")||'<tr><td colspan="6">まだ記録がありません</td></tr>';
+ let rows=[];
+ state.games.forEach((g,gi)=>g.points.forEach((p,pi)=>{
+   rows.push(`<tr><td>G${gi+1}</td><td>${pi+1}</td><td>${fmt(p.time)}</td><td>${p.winner==="me"?escapeHtml(state.me):escapeHtml(state.opp)}</td><td>${p.server==="me"?escapeHtml(state.me):escapeHtml(state.opp)}</td><td>${BALL_LABELS[p.ball]||"—"}</td><td>${escapeHtml(p.cause||"—")}</td></tr>`)
+ }));
+ $("log").innerHTML=rows.join("")||'<tr><td colspan="7">まだ記録がありません</td></tr>';
 }
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
 function renderResult(){
- let html=`<div class="score" style="margin-bottom:12px"><div><b>${escapeHtml(state.me)}</b><div class="num" style="font-size:32px">${state.gameWinsMe}</div></div><div>ゲーム</div><div><b>${escapeHtml(state.opp)}</b><div class="num" style="font-size:32px">${state.gameWinsOpp}</div></div></div>`;
+ updateGameWins();
  let all=state.games.flatMap(g=>g.points);
- const count={};all.forEach(p=>{let k=p.winner==="me"?"得点":"失点";count[k]??={};count[k][p.cause]=(count[k][p.cause]||0)+1});
- html+=`<h3 style="margin:8px 0">原因別</h3>`;
- for(const side of ["得点","失点"]){html+=`<b>${side}</b><ul>`;let obj=count[side]||{};let entries=Object.entries(obj).sort((a,b)=>b[1]-a[1]);html+=entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}点</li>`).join("")||"<li>—</li>";html+="</ul>"}
+ const myPts=all.filter(p=>p.winner==="me").length,oppPts=all.filter(p=>p.winner==="opp").length;
+ let html=`<div class="score" style="margin-bottom:12px"><div><b>${escapeHtml(state.me)}</b><div class="num" style="font-size:32px">${state.gameWinsMe}</div></div><div>ゲーム</div><div><b>${escapeHtml(state.opp)}</b><div class="num" style="font-size:32px">${state.gameWinsOpp}</div></div></div>`;
+ html+=`<div class="meta"><span class="pill">${escapeHtml(state.date||"日付未設定")}</span><span class="pill">対戦：${escapeHtml(state.opp)}</span><span class="pill">ポイント ${myPts}-${oppPts}</span></div>`;
+ const count={得点:{},失点:{}};
+ all.forEach(p=>{const side=p.winner==="me"?"得点":"失点";count[side][p.cause]=(count[side][p.cause]||0)+1});
+ html+=`<h3 style="margin:12px 0 6px">原因別</h3>`;
+ for(const side of ["得点","失点"]){
+   html+=`<b>${side}</b><ul>`;
+   const entries=Object.entries(count[side]).sort((a,b)=>b[1]-a[1]);
+   html+=entries.map(([k,v])=>`<li>${escapeHtml(k)}：${v}点</li>`).join("")||"<li>—</li>";
+   html+="</ul>";
+ }
  html+=`<h3 style="margin:8px 0">ゲーム別</h3><ul>`+state.games.map((g,i)=>`<li>G${i+1}: ${g.me}-${g.opp}</li>`).join("")+"</ul>";
  $("result").innerHTML=html;
 }
-function maybeGameWon(){
- const g=current(); let won=null;
- if((g.me>=11||g.opp>=11)&&Math.abs(g.me-g.opp)>=2) won=g.me>g.opp?"me":"opp";
- if(won){if(won==="me")state.gameWinsMe++;else state.gameWinsOpp++;render();save();
-   if(state.gameWinsMe>=3||state.gameWinsOpp>=3){alert("試合終了です。結果欄を確認してください。");return;}
-   setTimeout(()=>{if(confirm(`G${state.currentGame}は${won==="me"?state.me:state.opp}が取得。次のゲームへ進みますか？`)){state.currentGame++;state.games.push({me:0,opp:0,points:[]});state.selectedWinner=null;state.selectedCause=null;render();save();}},50);
- }
+function pointStatsForGame(g){
+ const x={msw:0,msl:0,mrw:0,mrl:0,osw:0,osl:0,orw:0,orl:0};
+ g.points.forEach(p=>{
+   if(p.server==="me"){
+     if(p.winner==="me"){x.msw++;x.orl++} else {x.msl++;x.orw++}
+   }else if(p.server==="opp"){
+     if(p.winner==="opp"){x.osw++;x.mrl++} else {x.osl++;x.mrw++}
+   }
+ });
+ return x;
+}
+function causeList(filterWinner){
+ const o={};
+ state.games.flatMap(g=>g.points).filter(p=>p.winner===filterWinner).forEach(p=>o[p.cause]=(o[p.cause]||0)+1);
+ return Object.entries(o).sort((a,b)=>b[1]-a[1]);
+}
+function ballList(filterWinner){
+ const a=[0,0,0,0,0];
+ state.games.flatMap(g=>g.points).filter(p=>p.winner===filterWinner).forEach(p=>{if(p.ball)a[p.ball-1]++});
+ return a;
+}
+function renderDashboard(){
+ updateGameWins();
+ const all=state.games.flatMap(g=>g.points);
+ const my=all.filter(p=>p.winner==="me").length,opp=all.length-my;
+ const service={meW:0,meL:0,recW:0,recL:0};
+ all.forEach(p=>{
+   if(p.server==="me"){if(p.winner==="me")service.meW++;else{service.meL++;service.recW++}}
+   else if(p.server==="opp"){if(p.winner==="me")service.recW++;else{service.meL++;service.recW=service.recW}}
+ });
+ // Recompute the four categories directly.
+ let msw=0,msl=0,mrw=0,mrl=0;
+ all.forEach(p=>{
+   if(p.server==="me"){if(p.winner==="me")msw++;else msl++}
+   else if(p.server==="opp"){if(p.winner==="me")mrw++;else mrl++}
+ });
+ const cMy=causeList("me"),cOpp=causeList("opp"),bMy=ballList("me"),bOpp=ballList("opp");
+ const maxMyCause=Math.max(1,...cMy.map(x=>x[1])),maxOppCause=Math.max(1,...cOpp.map(x=>x[1]));
+ const maxMyBall=Math.max(1,...bMy),maxOppBall=Math.max(1,...bOpp);
+ $("dashSub").textContent=`${state.date||"日付未設定"}　｜　${state.me} vs ${state.opp}${state.matchMemo?"　｜　"+state.matchMemo:""}`;
+ let html=`<div class="dash-grid">
+   <div class="dash-card"><h3>試合結果</h3><div class="big">${state.gameWinsMe} - ${state.gameWinsOpp}</div><div class="muted">${escapeHtml(state.me)} - ${escapeHtml(state.opp)}</div></div>
+   <div class="dash-card"><h3>総ポイント</h3><div class="big">${my}-${opp}</div><div class="muted">全${all.length}ポイント</div></div>
+   <div class="dash-card"><h3>${escapeHtml(state.me)} サーブ</h3><div class="big">${msw}-${msl}</div><div class="muted">得点 - 失点</div></div>
+   <div class="dash-card"><h3>${escapeHtml(state.me)} レシーブ</h3><div class="big">${mrw}-${mrl}</div><div class="muted">得点 - 失点</div></div>
+ </div>
+ <div class="dash-grid" style="margin-top:8px">
+   <div class="dash-card"><h3>ゲーム別スコア</h3><table class="dash-table"><tr><th>G</th><th>${escapeHtml(state.me)}</th><th>${escapeHtml(state.opp)}</th></tr>${state.games.map((g,i)=>`<tr><td>G${i+1}</td><td>${g.me}</td><td>${g.opp}</td></tr>`).join("")}</table></div>
+   <div class="dash-card"><h3>${escapeHtml(state.me)} 得点した球数</h3>${["1球目","2球目","3球目","4球目","5球目以降"].map((n,i)=>`<div class="barrow"><span>${n}</span><span class="bar"><i style="width:${bMy[i]/maxMyBall*100}%"></i></span><b>${bMy[i]}</b></div>`).join("")}</div>
+   <div class="dash-card"><h3>${escapeHtml(state.me)} 得点原因</h3>${cMy.slice(0,8).map(([k,v])=>`<div class="barrow"><span>${escapeHtml(k)}</span><span class="bar"><i style="width:${v/maxMyCause*100}%"></i></span><b>${v}</b></div>`).join("")||"<span class='muted'>—</span>"}</div>
+   <div class="dash-card"><h3>${escapeHtml(state.me)} 失点原因</h3>${cOpp.slice(0,8).map(([k,v])=>`<div class="barrow"><span>${escapeHtml(k)}</span><span class="bar"><i style="width:${v/maxOppCause*100}%"></i></span><b>${v}</b></div>`).join("")||"<span class='muted'>—</span>"}</div>
+ </div>
+ <div class="dash-card" style="margin-top:8px"><h3>ゲーム別 サーブ／レシーブ成績</h3><table class="dash-table"><tr><th>G</th><th>自分サーブ 得-失</th><th>自分レシーブ 得-失</th><th>相手サーブ 得-失</th><th>相手レシーブ 得-失</th></tr>${state.games.map((g,i)=>{const x=pointStatsForGame(g);return `<tr><td>G${i+1}</td><td>${x.msw}-${x.msl}</td><td>${x.mrw}-${x.mrl}</td><td>${x.osw}-${x.osl}</td><td>${x.orw}-${x.orl}</td></tr>`}).join("")}</table></div>`;
+ html+=`<div class="dash-card" style="margin-top:8px"><h3>試合メモ</h3><div>${escapeHtml(state.matchMemo||"—")}</div></div>`;
+ $("dashboardContent").innerHTML=html;
+ $("dashboardModal").classList.remove("hidden");
+}
+function renderMatchList(){
+ const list=getLibrary();
+ if(!list.length){$("matchList").innerHTML='<div class="muted">まだ保存された試合はありません。</div>';return}
+ $("matchList").innerHTML=list.map(m=>`<div class="match-row">
+   <div class="info"><div class="title">${escapeHtml(m.date||"日付未設定")}　${escapeHtml(m.me||"自分")} vs ${escapeHtml(m.opp||"相手")}</div>
+   <div class="sub">${m.gameWinsMe||0}-${m.gameWinsOpp||0}ゲーム　${escapeHtml(m.matchMemo||"")}</div></div>
+   <div class="actions"><button data-load="${m.id}">開く</button><button class="danger" data-del="${m.id}">削除</button></div>
+ </div>`).join("");
+ document.querySelectorAll("[data-load]").forEach(b=>b.onclick=()=>loadMatch(b.dataset.load));
+ document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>deleteMatch(b.dataset.del));
+}
+function loadMatch(id){
+ const m=getLibrary().find(x=>x.id===id);if(!m)return;
+ Object.assign(state,JSON.parse(JSON.stringify(m)));clearSelection();updateGameWins();saveCurrent();render();
+ alert("保存した試合を読み込みました。");
+}
+function deleteMatch(id){
+ if(!confirm("この保存データを削除しますか？"))return;
+ saveLibrary(getLibrary().filter(x=>x.id!==id));
+ if(state.id===id)localStorage.removeItem("tt_state");
+ renderMatchList();
+}
+function newMatch(){
+ if(state.games.some(g=>g.points.length)&&!confirm("現在の試合を保存したまま、新しい試合を始めますか？"))return;
+ state.id=uid();state.date=new Date().toISOString().slice(0,10);state.opp="相手";state.matchMemo="";
+ state.firstServer=null;state.currentGame=1;state.gameWinsMe=0;state.gameWinsOpp=0;
+ state.games=[{me:0,opp:0,points:[]}];clearSelection();saveCurrent();render();
 }
 function recordPoint(){
- if(!state.selectedWinner||!state.selectedCause){alert("勝者と原因を選択してください。");return}
- const g=current(), winner=state.selectedWinner;
+ if(!state.selectedWinner||!state.selectedCause||!state.selectedBall){alert("得点者・何球目・原因をすべて選択してください。");return}
+ const g=current(),winner=state.selectedWinner;
+ const server=serverForPoint(g); // 記録前のサーバーを保存
  if(winner==="me")g.me++;else g.opp++;
- g.points.push({winner,cause:state.selectedCause,note:$("note").value,time:video.currentTime||0,server:serverForPoint(g)});
- state.selectedWinner=null;state.selectedCause=null;$("note").value="";
- maybeGameWon();render();save();
+ g.points.push({winner,ball:state.selectedBall,cause:state.selectedCause,note:$("note").value,time:video.currentTime||0,server});
+ clearSelection();$("note").value="";
+ updateGameWins();saveCurrent();render();
+ const won=gameWinner(g);
+ if(won && state.gameWinsMe<3 && state.gameWinsOpp<3){
+   setTimeout(()=>{if(confirm(`G${state.currentGame}は${won==="me"?state.me:state.opp}が取得しました。次のゲームへ進みますか？`)){
+     if(state.currentGame<5){state.currentGame++;if(!state.games[state.currentGame-1])state.games.push({me:0,opp:0,points:[]});clearSelection();saveCurrent();render()}
+   }},80);
+ }else if(won){alert("試合終了です。ダッシュボードで結果を確認できます。")}
 }
-$("videoFile").onchange=e=>{let f=e.target.files[0];if(f){video.src=URL.createObjectURL(f);video.load();$("status").textContent="動画読込済（端末内）"}};
+function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+$("videoFile").onchange=e=>{const f=e.target.files[0];if(f){video.src=URL.createObjectURL(f);video.load();$("status").textContent="動画読込済（端末内）"}};
 $("playBtn").onclick=()=>video.paused?video.play():video.pause();
-video.onplay=()=>$("playBtn").textContent="⏸ 一時停止";video.onpause=()=>$("playBtn").textContent="▶ 再生";
+video.onplay=()=>{$("playBtn").textContent="⏸ 一時停止"};video.onpause=()=>{$("playBtn").textContent="▶ 再生"};
 video.ontimeupdate=()=>{$("time").textContent=fmt(video.currentTime)};
 $("backBtn").onclick=()=>video.currentTime=Math.max(0,video.currentTime-5);
 $("fwdBtn").onclick=()=>video.currentTime=Math.min(video.duration||1,video.currentTime+5);
-$("winMe").onclick=()=>{state.selectedWinner="me";state.selectedCause=null;render()};
-$("winOpp").onclick=()=>{state.selectedWinner="opp";state.selectedCause=null;render()};
+
+$("winMe").onclick=()=>{state.selectedWinner="me";state.selectedCause=null;state.selectedBall=null;render()};
+$("winOpp").onclick=()=>{state.selectedWinner="opp";state.selectedCause=null;state.selectedBall=null;render()};
 $("savePoint").onclick=recordPoint;
-$("serveMe").onclick=()=>{if(state.games.some(g=>g.points.length)){alert("ゲーム開始後は変更できません。");return}state.firstServer="me";save();render()};
-$("serveOpp").onclick=()=>{if(state.games.some(g=>g.points.length)){alert("ゲーム開始後は変更できません。");return}state.firstServer="opp";save();render()};
-$("newGame").onclick=()=>{if(state.gameWinsMe>=3||state.gameWinsOpp>=3){alert("試合は終了しています。");return}if(current().points.length===0){alert("現在のゲームに記録がありません。");return}if(current().me<11&&current().opp<11||Math.abs(current().me-current().opp)<2){alert("まだゲーム終了条件を満たしていません。");return}if(state.currentGame<5){state.currentGame++;if(!state.games[state.currentGame-1])state.games.push({me:0,opp:0,points:[]});state.selectedWinner=null;state.selectedCause=null;render();save()}};
-$("undo").onclick=()=>{let g=current();if(!g.points.length){alert("取り消す記録がありません。");return}let p=g.points.pop();if(p.winner==="me")g.me--;else g.opp--;state.selectedWinner=null;state.selectedCause=null;render();save()};
-$("applyConfig").onclick=()=>{let a=$("causeConfig").value.split("\\n").map(x=>x.trim()).filter(Boolean);if(!a.length){alert("原因を1つ以上入力してください。");return}state.causes=a;localStorage.setItem("tt_causes",JSON.stringify(a));render();save()};
-$("resetConfig").onclick=()=>{state.causes=[...DEFAULT_CAUSES];localStorage.setItem("tt_causes",JSON.stringify(state.causes));render();save()};
-$("applyNames").onclick=()=>{state.me=$("meInput").value.trim()||"自分";state.opp=$("oppInput").value.trim()||"相手";save();render()};
-function download(name,text,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-$("exportJson").onclick=()=>download("tabletennis-analysis.json",JSON.stringify(state,null,2),"application/json");
-$("exportCsv").onclick=()=>{let rows=[["ゲーム","点","動画時刻","勝者","サーバー","原因","メモ"]];state.games.forEach((g,gi)=>g.points.forEach((p,pi)=>rows.push([gi+1,pi+1,fmt(p.time),p.winner==="me"?state.me:state.opp,p.server==="me"?state.me:state.opp,p.cause||"",p.note||""])));let csv="\\ufeff"+rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\\n");download("tabletennis-analysis.csv",csv,"text/csv;charset=utf-8")};
+
+$("serveMe").onclick=()=>{if(state.games.some(g=>g.points.length)){alert("ゲーム開始後は変更できません。");return}state.firstServer="me";saveCurrent();render()};
+$("serveOpp").onclick=()=>{if(state.games.some(g=>g.points.length)){alert("ゲーム開始後は変更できません。");return}state.firstServer="opp";saveCurrent();render()};
+
+$("newGame").onclick=()=>{
+ const g=current();updateGameWins();
+ if(state.gameWinsMe>=3||state.gameWinsOpp>=3){alert("試合は終了しています。");return}
+ if(!gameWinner(g)){alert("まだゲーム終了条件を満たしていません。");return}
+ if(state.currentGame<5){state.currentGame++;if(!state.games[state.currentGame-1])state.games.push({me:0,opp:0,points:[]});clearSelection();saveCurrent();render()}
+};
+$("undo").onclick=()=>{
+ const g=current();if(!g.points.length){alert("取り消す記録がありません。");return}
+ const p=g.points.pop();if(p.winner==="me")g.me--;else g.opp--;clearSelection();updateGameWins();saveCurrent();render();
+};
+
+$("applyConfig").onclick=()=>{const a=$("causeConfig").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!a.length){alert("原因を1つ以上入力してください。");return}state.causes=a;localStorage.setItem("tt_causes",JSON.stringify(a));saveCurrent();render()};
+$("resetConfig").onclick=()=>{state.causes=[...DEFAULT_CAUSES];localStorage.setItem("tt_causes",JSON.stringify(state.causes));saveCurrent();render()};
+$("applyNames").onclick=()=>{state.me=$("meInput").value.trim()||"自分";state.opp=$("oppInput").value.trim()||"相手";$("matchOpponent").value=state.opp;saveCurrent();render()};
+
+$("saveMatch").onclick=()=>{
+ state.date=$("matchDate").value;
+ state.opp=$("matchOpponent").value.trim()||"相手";
+ state.matchMemo=$("matchMemo").value.trim();
+ saveCurrent();render();alert("この試合を保存しました。");
+};
+$("newMatch").onclick=newMatch;
+$("clearAllMatches").onclick=()=>{if(confirm("保存した試合データをすべて削除しますか？この操作は元に戻せません。")){localStorage.removeItem("tt_match_library");localStorage.removeItem("tt_state");newMatch()}};
+
+$("exportJson").onclick=()=>download("tabletennis-analysis.json",JSON.stringify(snapshot(),null,2),"application/json");
+$("exportCsv").onclick=()=>{
+ let rows=[["試合日","対戦相手","ゲーム","点","動画時刻","勝者","サーバー","何球目","原因","メモ"]];
+ state.games.forEach((g,gi)=>g.points.forEach((p,pi)=>rows.push([state.date,state.opp,gi+1,pi+1,fmt(p.time),p.winner==="me"?state.me:state.opp,p.server==="me"?state.me:state.opp,BALL_LABELS[p.ball]||"",p.cause||"",p.note||""])));
+ const csv="\ufeff"+rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
+ download("tabletennis-analysis.csv",csv,"text/csv;charset=utf-8");
+};
+
 $("importBtn").onclick=()=>$("importJson").click();
-$("importJson").onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let s=JSON.parse(r.result);Object.assign(state,s);render();save();alert("読み込みました。")}catch(err){alert("JSONを読み込めませんでした。")}};r.readAsText(f)};
-load();render();
-</script>
+$("importJson").onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ const r=new FileReader();r.onload=()=>{try{
+   const s=JSON.parse(r.result);Object.assign(state,s);
+   state.games=state.games?.length?state.games:[{me:0,opp:0,points:[]}];
+   state.games.forEach(g=>g.points.forEach(p=>{if(!p.ball)p.ball=5}));
+   clearSelection();updateGameWins();saveCurrent();render();alert("読み込みました。");
+ }catch(err){alert("JSONを読み込めませんでした。")}};r.readAsText(f)
+};
+
+const modal=document.createElement("div");
+modal.id="dashboardModal";modal.className="modal hidden";
+modal.innerHTML=`<div class="dashboard"><div class="dashboard-head"><div><div class="dash-title">🏓 試合分析ダッシュボード</div><div id="dashSub" class="dash-sub"></div></div><button id="closeDashboard">閉じる</button></div><div id="dashboardContent"></div></div>`;
+document.body.appendChild(modal);
+$("dashboardBtn").onclick=renderDashboard;
+$("closeDashboard").onclick=()=>$("dashboardModal").classList.add("hidden");
+
+loadCurrent();
+if(!state.id){state.id=uid();state.date=new Date().toISOString().slice(0,10);saveCurrent()}
+render();
+
+
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
