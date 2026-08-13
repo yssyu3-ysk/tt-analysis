@@ -573,5 +573,56 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+
+<script>
+/* v8: fixed cause categories */
+window.TT_GAIN_CAUSES = [
+  "サービスエース","台上技術","ドライブ","スマッシュ","ショート、プッシュ",
+  "ブロック、カウンター","相手のブロックミス","相手のレシーブミス",
+  "相手の台上ミス","相手の強打ミス","相手の凡ミス"
+];
+window.TT_LOSS_CAUSES = [
+  "サービスミス","台上技術","強打","レシーブミス","台上ミス",
+  "ブロックミス","つなぎドライブミス","ドライブ強打ミス","スマッシュミス"
+];
+</script>
+
+
+<script>
+(function(){
+  const G = window.TT_GAIN_CAUSES, L = window.TT_LOSS_CAUSES;
+  function isCauseSelect(s){
+    const t = ((s.name||"")+" "+(s.id||"")+" "+(s.getAttribute("aria-label")||"")).toLowerCase();
+    return /cause|reason|原因/.test(t);
+  }
+  function fill(select, arr){
+    if(!select || !arr) return;
+    const current = select.value;
+    select.innerHTML = "";
+    arr.forEach(v=>{
+      const o=document.createElement("option");
+      o.value=v; o.textContent=v; select.appendChild(o);
+    });
+    if(arr.includes(current)) select.value=current;
+  }
+  function refresh(){
+    document.querySelectorAll("select").forEach(s=>{
+      if(!isCauseSelect(s)) return;
+      const context=((s.closest("form,section,div")||document.body).innerText||"");
+      const isLoss=/失点|失敗|loss|miss/.test(context) && !/得点/.test(context);
+      fill(s, isLoss ? L : G);
+    });
+  }
+  document.addEventListener("change", e=>{
+    if(e.target && /得点|失点/.test((e.target.value||"")+" "+(e.target.name||""))){
+      setTimeout(refresh,0);
+    }
+  });
+  new MutationObserver(refresh).observe(document.documentElement,{childList:true,subtree:true});
+  window.addEventListener("load", refresh);
+  setTimeout(refresh,300);
+})();
+</script>
+
 </body>
 </html>
