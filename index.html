@@ -47,6 +47,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 .dash-card h3{font-size:13px;margin:0 0 8px}.big{font-size:32px;font-weight:900}.dash-table{width:100%;border-collapse:collapse;font-size:12px}.dash-table th,.dash-table td{padding:7px;border-bottom:1px solid #e5e7eb}.barrow{display:grid;grid-template-columns:78px 1fr 28px;gap:6px;align-items:center;margin:5px 0;font-size:11px}.bar{height:12px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar>i{display:block;height:100%;background:#2563eb}.muted{color:#64748b}
 .match-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px;margin:6px 0;background:#fafafa}
 .match-row .info{min-width:0}.match-row .title{font-weight:800}.match-row .sub{font-size:11px;color:var(--muted);margin-top:2px}.match-row .actions{display:flex;gap:5px}.match-row button{min-height:36px;padding:7px 9px;font-size:12px}
+.dash-nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px}.dash-nav button.active{background:#dbeafe;color:#1d4ed8}.dash-page{display:none}.dash-page.active{display:block}.cross-table{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.cross-table th,.cross-table td{padding:5px 3px;border:1px solid #e5e7eb;text-align:center;white-space:nowrap}.cross-table th{position:static;background:#f1f5f9;font-weight:800}.cross-table .rowhead{text-align:left;font-weight:800;background:#f8fafc}.cross-table .total{font-weight:900;background:#f8fafc}.dash-section-title{font-size:13px;font-weight:900;margin:8px 0 5px}.dash-note{font-size:10px;color:#64748b;margin:3px 0 6px}.combo-table{width:100%;border-collapse:collapse;font-size:10px}.combo-table th,.combo-table td{padding:5px 4px;border-bottom:1px solid #e5e7eb;text-align:left}.combo-table th{position:static;background:#f8fafc}.scene-tag{display:inline-block;padding:2px 5px;border-radius:5px;background:#eef2ff;font-weight:800}.cause-matrix td:first-child{text-align:left;white-space:normal}.dash-footer{font-size:9px;color:#94a3b8;margin-top:7px}
 @media(min-width:700px){.dash-grid{grid-template-columns:repeat(4,1fr)}}
 @media print{body>*:not(#dashboardModal){display:none!important}.modal{position:static;background:white;padding:0}.dashboard{box-shadow:none}}
 </style>
@@ -137,8 +138,10 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
     <details open>
       <summary>選択肢をカスタマイズ</summary>
       <div style="margin-top:10px">
-        <label>原因（1行1項目）</label>
-        <textarea id="causeConfig" rows="9"></textarea>
+        <label>得点の原因（1行1項目）</label>
+        <textarea id="causeConfigMe" rows="7"></textarea>
+        <label style="margin-top:8px">失点の原因（1行1項目）</label>
+        <textarea id="causeConfigOpp" rows="8"></textarea>
         <div class="grid2" style="margin-top:8px"><button id="applyConfig" class="primary">反映</button><button id="resetConfig">初期値に戻す</button></div>
       </div>
       <div style="margin-top:12px">
@@ -184,16 +187,16 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 
 <script>
 
-const DEFAULT_CAUSES=[
-"サービスミス","レシーブミス","台上技術ミス","攻撃ミス","守備ミス",
-"ラリー中のミス","判断・戦術","相手のナイスプレー","ネット・エッジ等","その他"
-];
+const DEFAULT_CAUSES={
+ me:["サービスエース","台上技術","ドライブ","スマッシュ","ショート、プッシュ","ブロック、カウンター","相手の凡ミス"],
+ opp:["台上技術","強打","レシーブミス","台上ミス","ブロックミス","つなぎドライブミス","ドライブ強打ミス","スマッシュミス"]
+};
 const BALL_LABELS=["","1球目","2球目","3球目","4球目","5球目以降"];
 const state={
  id:null, date:"", me:"自分", opp:"相手", matchMemo:"",
  firstServer:null, currentGame:1, gameWinsMe:0, gameWinsOpp:0,
  games:[{me:0,opp:0,points:[]}], selectedWinner:null, selectedCause:null, selectedBall:null,
- causes:JSON.parse(localStorage.getItem("tt_causes")||"null")||DEFAULT_CAUSES
+ causes:JSON.parse(localStorage.getItem("tt_causes")||"null")||JSON.parse(JSON.stringify(DEFAULT_CAUSES))
 };
 const $=id=>document.getElementById(id);
 const video=$("video");
@@ -228,7 +231,8 @@ function renderBallNumbers(){
 }
 function renderCauses(){
  $("causes").innerHTML="";
- state.causes.forEach(c=>{
+ const list=state.causes[state.selectedWinner]||[];
+ list.forEach(c=>{
    const b=document.createElement("button");
    b.className="cause"+(state.selectedCause===c?" selected":"");
    b.textContent=c;
@@ -259,7 +263,8 @@ function loadCurrent(){
  if(!s)return;
  Object.assign(state,s);
  state.games=state.games?.length?state.games:[{me:0,opp:0,points:[]}];
- state.causes=state.causes?.length?state.causes:DEFAULT_CAUSES;
+ if(Array.isArray(state.causes)){ state.causes={me:[...state.causes],opp:[...DEFAULT_CAUSES.opp]}; }
+ state.causes=state.causes?.me?.length?state.causes:{me:[...DEFAULT_CAUSES.me],opp:[...DEFAULT_CAUSES.opp]};
  state.games.forEach(g=>g.points.forEach(p=>{if(!p.ball)p.ball=5}));
  updateGameWins();
 }
@@ -276,7 +281,8 @@ function render(){
  $("matchDate").value=state.date||"";
  $("matchOpponent").value=state.opp||"";
  $("matchMemo").value=state.matchMemo||"";
- $("causeConfig").value=state.causes.join("\n");
+ $("causeConfigMe").value=state.causes.me.join("\n");
+ $("causeConfigOpp").value=state.causes.opp.join("\n");
  $("causeArea").classList.toggle("hidden",!state.selectedWinner);
  renderBallNumbers();renderCauses();renderTabs();renderLog();renderResult();renderMatchList();
 }
@@ -326,51 +332,98 @@ function pointStatsForGame(g){
  });
  return x;
 }
+function allPoints(){return state.games.flatMap((g,gi)=>g.points.map((p,pi)=>({...p,game:gi+1,point:pi+1})))}
+function sceneForPoint(p){return p.server==="me"?"サーブ":"レシーブ"}
+function ballLabel(b){return BALL_LABELS[b]||"—"}
+function buildSceneBallMatrix(points,winner){
+ const rows={"サーブ":[0,0,0,0,0],"レシーブ":[0,0,0,0,0]};
+ points.filter(p=>p.winner===winner).forEach(p=>{if(p.ball>=1&&p.ball<=5)rows[sceneForPoint(p)][p.ball-1]++});
+ return rows;
+}
+function buildSceneCauseMatrix(points){
+ const rows={};
+ points.forEach(p=>{
+   const key=p.cause||"未分類";
+   if(!rows[key])rows[key]={sW:0,sL:0,rW:0,rL:0};
+   const scene=sceneForPoint(p);
+   if(scene==="サーブ")p.winner==="me"?rows[key].sW++:rows[key].sL++;
+   else p.winner==="me"?rows[key].rW++:rows[key].rL++;
+ });
+ return rows;
+}
+function topCombos(points){
+ const map={};
+ points.forEach(p=>{
+   const key=[sceneForPoint(p),ballLabel(p.ball),p.winner==="me"?"得点":"失点",p.cause||"未分類"];
+   const id=key.join("||");
+   if(!map[id])map[id]={scene:key[0],ball:key[1],result:key[2],cause:key[3],n:0};
+   map[id].n++;
+ });
+ return Object.values(map).sort((a,b)=>b.n-a.n).slice(0,10);
+}
 function causeList(filterWinner){
  const o={};
- state.games.flatMap(g=>g.points).filter(p=>p.winner===filterWinner).forEach(p=>o[p.cause]=(o[p.cause]||0)+1);
+ allPoints().filter(p=>p.winner===filterWinner).forEach(p=>o[p.cause||"未分類"]=(o[p.cause||"未分類"]||0)+1);
  return Object.entries(o).sort((a,b)=>b[1]-a[1]);
 }
 function ballList(filterWinner){
  const a=[0,0,0,0,0];
- state.games.flatMap(g=>g.points).filter(p=>p.winner===filterWinner).forEach(p=>{if(p.ball)a[p.ball-1]++});
+ allPoints().filter(p=>p.winner===filterWinner).forEach(p=>{if(p.ball)a[p.ball-1]++});
  return a;
+}
+function renderSceneBallTable(points,winner){
+ const rows=buildSceneBallMatrix(points,winner);
+ const sums=[0,0,0,0,0];Object.values(rows).forEach(r=>r.forEach((v,i)=>sums[i]+=v));
+ return `<table class="cross-table"><tr><th>場面</th>${BALL_LABELS.slice(1).map(x=>`<th>${x}</th>`).join("")}<th>計</th></tr>`+
+   Object.entries(rows).map(([scene,r])=>`<tr><td class="rowhead">${scene}</td>${r.map(v=>`<td>${v}</td>`).join("")}<td class="total">${r.reduce((a,b)=>a+b,0)}</td></tr>`).join("")+`<tr><td class="rowhead total">計</td>${sums.map(v=>`<td class="total">${v}</td>`).join("")}<td class="total">${sums.reduce((a,b)=>a+b,0)}</td></tr></table>`;
 }
 function renderDashboard(){
  updateGameWins();
- const all=state.games.flatMap(g=>g.points);
- const my=all.filter(p=>p.winner==="me").length,opp=all.length-my;
- const service={meW:0,meL:0,recW:0,recL:0};
- all.forEach(p=>{
-   if(p.server==="me"){if(p.winner==="me")service.meW++;else{service.meL++;service.recW++}}
-   else if(p.server==="opp"){if(p.winner==="me")service.recW++;else{service.meL++;service.recW=service.recW}}
- });
- // Recompute the four categories directly.
+ const points=allPoints();
+ const my=points.filter(p=>p.winner==="me").length,opp=points.length-my;
  let msw=0,msl=0,mrw=0,mrl=0;
- all.forEach(p=>{
+ points.forEach(p=>{
    if(p.server==="me"){if(p.winner==="me")msw++;else msl++}
    else if(p.server==="opp"){if(p.winner==="me")mrw++;else mrl++}
  });
- const cMy=causeList("me"),cOpp=causeList("opp"),bMy=ballList("me"),bOpp=ballList("opp");
- const maxMyCause=Math.max(1,...cMy.map(x=>x[1])),maxOppCause=Math.max(1,...cOpp.map(x=>x[1]));
- const maxMyBall=Math.max(1,...bMy),maxOppBall=Math.max(1,...bOpp);
+ const gamesHtml=state.games.map((g,i)=>`<tr><td>G${i+1}</td><td>${g.me}</td><td>${g.opp}</td></tr>`).join("");
+ const sceneCause=buildSceneCauseMatrix(points);
+ const causeRows=Object.entries(sceneCause).sort((a,b)=>Object.values(b[1]).reduce((x,y)=>x+y,0)-Object.values(a[1]).reduce((x,y)=>x+y,0));
+ const combos=topCombos(points);
  $("dashSub").textContent=`${state.date||"日付未設定"}　｜　${state.me} vs ${state.opp}${state.matchMemo?"　｜　"+state.matchMemo:""}`;
- let html=`<div class="dash-grid">
-   <div class="dash-card"><h3>試合結果</h3><div class="big">${state.gameWinsMe} - ${state.gameWinsOpp}</div><div class="muted">${escapeHtml(state.me)} - ${escapeHtml(state.opp)}</div></div>
-   <div class="dash-card"><h3>総ポイント</h3><div class="big">${my}-${opp}</div><div class="muted">全${all.length}ポイント</div></div>
-   <div class="dash-card"><h3>${escapeHtml(state.me)} サーブ</h3><div class="big">${msw}-${msl}</div><div class="muted">得点 - 失点</div></div>
-   <div class="dash-card"><h3>${escapeHtml(state.me)} レシーブ</h3><div class="big">${mrw}-${mrl}</div><div class="muted">得点 - 失点</div></div>
- </div>
- <div class="dash-grid" style="margin-top:8px">
-   <div class="dash-card"><h3>ゲーム別スコア</h3><table class="dash-table"><tr><th>G</th><th>${escapeHtml(state.me)}</th><th>${escapeHtml(state.opp)}</th></tr>${state.games.map((g,i)=>`<tr><td>G${i+1}</td><td>${g.me}</td><td>${g.opp}</td></tr>`).join("")}</table></div>
-   <div class="dash-card"><h3>${escapeHtml(state.me)} 得点した球数</h3>${["1球目","2球目","3球目","4球目","5球目以降"].map((n,i)=>`<div class="barrow"><span>${n}</span><span class="bar"><i style="width:${bMy[i]/maxMyBall*100}%"></i></span><b>${bMy[i]}</b></div>`).join("")}</div>
-   <div class="dash-card"><h3>${escapeHtml(state.me)} 得点原因</h3>${cMy.slice(0,8).map(([k,v])=>`<div class="barrow"><span>${escapeHtml(k)}</span><span class="bar"><i style="width:${v/maxMyCause*100}%"></i></span><b>${v}</b></div>`).join("")||"<span class='muted'>—</span>"}</div>
-   <div class="dash-card"><h3>${escapeHtml(state.me)} 失点原因</h3>${cOpp.slice(0,8).map(([k,v])=>`<div class="barrow"><span>${escapeHtml(k)}</span><span class="bar"><i style="width:${v/maxOppCause*100}%"></i></span><b>${v}</b></div>`).join("")||"<span class='muted'>—</span>"}</div>
- </div>
- <div class="dash-card" style="margin-top:8px"><h3>ゲーム別 サーブ／レシーブ成績</h3><table class="dash-table"><tr><th>G</th><th>自分サーブ 得-失</th><th>自分レシーブ 得-失</th><th>相手サーブ 得-失</th><th>相手レシーブ 得-失</th></tr>${state.games.map((g,i)=>{const x=pointStatsForGame(g);return `<tr><td>G${i+1}</td><td>${x.msw}-${x.msl}</td><td>${x.mrw}-${x.mrl}</td><td>${x.osw}-${x.osl}</td><td>${x.orw}-${x.orl}</td></tr>`}).join("")}</table></div>`;
- html+=`<div class="dash-card" style="margin-top:8px"><h3>試合メモ</h3><div>${escapeHtml(state.matchMemo||"—")}</div></div>`;
- $("dashboardContent").innerHTML=html;
+ const page1=`<div class="dash-page active" id="dashPage1">
+   <div class="dash-grid">
+    <div class="dash-card"><h3>試合結果</h3><div class="big">${state.gameWinsMe} - ${state.gameWinsOpp}</div><div class="muted">${escapeHtml(state.me)} - ${escapeHtml(state.opp)}</div></div>
+    <div class="dash-card"><h3>総ポイント</h3><div class="big">${my}-${opp}</div><div class="muted">全${points.length}ポイント</div></div>
+    <div class="dash-card"><h3>${escapeHtml(state.me)} サーブ</h3><div class="big">${msw}-${msl}</div><div class="muted">得点 - 失点</div></div>
+    <div class="dash-card"><h3>${escapeHtml(state.me)} レシーブ</h3><div class="big">${mrw}-${mrl}</div><div class="muted">得点 - 失点</div></div>
+   </div>
+   <div class="dash-section-title">① サーブ／レシーブ × 何球目（得点）</div>
+   ${renderSceneBallTable(points,"me")}
+   <div class="dash-section-title">② サーブ／レシーブ × 何球目（失点）</div>
+   ${renderSceneBallTable(points,"opp")}
+   <div class="dash-card" style="margin-top:8px"><h3>ゲーム別スコア</h3><table class="dash-table"><tr><th>G</th><th>${escapeHtml(state.me)}</th><th>${escapeHtml(state.opp)}</th></tr>${gamesHtml}</table></div>
+   <div class="dash-footer">スクリーンショット用：このページを1枚目として保存してください。</div>
+ </div>`;
+ const causeRowsHtml=causeRows.map(([cause,v])=>`<tr><td>${escapeHtml(cause)}</td><td>${v.sW}</td><td>${v.sL}</td><td>${v.rW}</td><td>${v.rL}</td><td class="total">${v.sW+v.sL+v.rW+v.rL}</td></tr>`).join("");
+ const comboHtml=combos.map((x,i)=>`<tr><td>${i+1}</td><td><span class="scene-tag">${x.scene}</span></td><td>${x.ball}</td><td>${x.result}</td><td>${escapeHtml(x.cause)}</td><td><b>${x.n}</b></td></tr>`).join("")||`<tr><td colspan="6" class="muted">まだ記録がありません</td></tr>`;
+ const page2=`<div class="dash-page" id="dashPage2">
+   <div class="dash-section-title">③ サーブ／レシーブ × 得失点の原因</div>
+   <div class="dash-note">「サーブ得」は自分がサーブして得点、「レシーブ得」は自分がレシーブして得点。失点も同様です。</div>
+   <table class="cross-table cause-matrix"><tr><th>原因</th><th>サーブ<br>得</th><th>サーブ<br>失</th><th>レシーブ<br>得</th><th>レシーブ<br>失</th><th>計</th></tr>${causeRowsHtml||`<tr><td colspan="6" class="muted">まだ記録がありません</td></tr>`}</table>
+   <div class="dash-section-title">④ 場面 × 何球目 × 原因：多かった組み合わせ TOP10</div>
+   <div class="dash-note">「どの場面で、何球目に、どんな原因で得失点したか」を一度に確認できます。</div>
+   <table class="combo-table"><tr><th>#</th><th>場面</th><th>球数</th><th>得失</th><th>原因</th><th>回数</th></tr>${comboHtml}</table>
+   <div class="dash-card" style="margin-top:8px"><h3>ゲーム別 サーブ／レシーブ得失点</h3><table class="dash-table"><tr><th>G</th><th>自分サーブ<br>得-失</th><th>自分レシーブ<br>得-失</th></tr>${state.games.map((g,i)=>{const x=pointStatsForGame(g);return `<tr><td>G${i+1}</td><td>${x.msw}-${x.msl}</td><td>${x.mrw}-${x.mrl}</td></tr>`}).join("")}</table></div>
+   <div class="dash-footer">スクリーンショット用：このページを2枚目として保存してください。</div>
+ </div>`;
+ $("dashboardContent").innerHTML=`<div class="dash-nav"><button id="dashTab1" class="active">1枚目：球数分析</button><button id="dashTab2">2枚目：原因分析</button></div>${page1}${page2}`;
+ $("dashTab1").onclick=()=>switchDashPage(1);$("dashTab2").onclick=()=>switchDashPage(2);
  $("dashboardModal").classList.remove("hidden");
+}
+function switchDashPage(n){
+ document.querySelectorAll(".dash-page").forEach((el,i)=>el.classList.toggle("active",i===n-1));
+ [$("dashTab1"),$("dashTab2")].forEach((b,i)=>b.classList.toggle("active",i===n-1));
 }
 function renderMatchList(){
  const list=getLibrary();
@@ -442,8 +495,13 @@ $("undo").onclick=()=>{
  const p=g.points.pop();if(p.winner==="me")g.me--;else g.opp--;clearSelection();updateGameWins();saveCurrent();render();
 };
 
-$("applyConfig").onclick=()=>{const a=$("causeConfig").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!a.length){alert("原因を1つ以上入力してください。");return}state.causes=a;localStorage.setItem("tt_causes",JSON.stringify(a));saveCurrent();render()};
-$("resetConfig").onclick=()=>{state.causes=[...DEFAULT_CAUSES];localStorage.setItem("tt_causes",JSON.stringify(state.causes));saveCurrent();render()};
+$("applyConfig").onclick=()=>{
+ const me=$("causeConfigMe").value.split("\n").map(x=>x.trim()).filter(Boolean);
+ const opp=$("causeConfigOpp").value.split("\n").map(x=>x.trim()).filter(Boolean);
+ if(!me.length||!opp.length){alert("得点・失点の原因をそれぞれ1つ以上入力してください。");return}
+ state.causes={me,opp};localStorage.setItem("tt_causes",JSON.stringify(state.causes));saveCurrent();render()
+};
+$("resetConfig").onclick=()=>{state.causes=JSON.parse(JSON.stringify(DEFAULT_CAUSES));localStorage.setItem("tt_causes",JSON.stringify(state.causes));saveCurrent();render()};
 $("applyNames").onclick=()=>{state.me=$("meInput").value.trim()||"自分";state.opp=$("oppInput").value.trim()||"相手";$("matchOpponent").value=state.opp;saveCurrent();render()};
 
 $("saveMatch").onclick=()=>{
@@ -468,6 +526,8 @@ $("importJson").onchange=e=>{
  const f=e.target.files[0];if(!f)return;
  const r=new FileReader();r.onload=()=>{try{
    const s=JSON.parse(r.result);Object.assign(state,s);
+   if(Array.isArray(state.causes)){ state.causes={me:[...state.causes],opp:[...DEFAULT_CAUSES.opp]}; }
+   state.causes=state.causes?.me?.length?state.causes:{me:[...DEFAULT_CAUSES.me],opp:[...DEFAULT_CAUSES.opp]};
    state.games=state.games?.length?state.games:[{me:0,opp:0,points:[]}];
    state.games.forEach(g=>g.points.forEach(p=>{if(!p.ball)p.ball=5}));
    clearSelection();updateGameWins();saveCurrent();render();alert("読み込みました。");
