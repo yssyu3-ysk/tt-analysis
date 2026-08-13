@@ -48,6 +48,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 .match-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px;margin:6px 0;background:#fafafa}
 .match-row .info{min-width:0}.match-row .title{font-weight:800}.match-row .sub{font-size:11px;color:var(--muted);margin-top:2px}.match-row .actions{display:flex;gap:5px}.match-row button{min-height:36px;padding:7px 9px;font-size:12px}
 .dash-nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px}.dash-nav button.active{background:#dbeafe;color:#1d4ed8}.dash-page{display:none}.dash-page.active{display:block}.cross-table{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}.cross-table th,.cross-table td{padding:5px 3px;border:1px solid #e5e7eb;text-align:center;white-space:nowrap}.cross-table th{position:static;background:#f1f5f9;font-weight:800}.cross-table .rowhead{text-align:left;font-weight:800;background:#f8fafc}.cross-table .total{font-weight:900;background:#f8fafc}.dash-section-title{font-size:13px;font-weight:900;margin:8px 0 5px}.dash-note{font-size:10px;color:#64748b;margin:3px 0 6px}.combo-table{width:100%;border-collapse:collapse;font-size:10px}.combo-table th,.combo-table td{padding:5px 4px;border-bottom:1px solid #e5e7eb;text-align:left}.combo-table th{position:static;background:#f8fafc}.scene-tag{display:inline-block;padding:2px 5px;border-radius:5px;background:#eef2ff;font-weight:800}.cause-matrix td:first-child{text-align:left;white-space:normal}.dash-footer{font-size:9px;color:#94a3b8;margin-top:7px}
+.cause-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:6px 0 8px}.cause-tabs button.active{background:#dbeafe;color:#1d4ed8;font-weight:900}.cause-window.hidden{display:none}
 @media(min-width:700px){.dash-grid{grid-template-columns:repeat(4,1fr)}}
 @media print{body>*:not(#dashboardModal){display:none!important}.modal{position:static;background:white;padding:0}.dashboard{box-shadow:none}}
 </style>
@@ -188,7 +189,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;margin-top:20px}
 <script>
 
 const DEFAULT_CAUSES={
- me:["サービスエース","台上技術","ドライブ","スマッシュ","ショート、プッシュ","ブロック、カウンター","相手の凡ミス"],
+ me:["サービスエース","台上技術","ドライブ","スマッシュ","ショート、プッシュ","ブロック、カウンター","相手のブロックミス","相手のレシーブミス","相手の台上ミス","相手の強打ミス","相手の凡ミス"],
  opp:["台上技術","強打","レシーブミス","台上ミス","ブロックミス","つなぎドライブミス","ドライブ強打ミス","スマッシュミス"]
 };
 const BALL_LABELS=["","1球目","2球目","3球目","4球目","5球目以降"];
@@ -387,8 +388,6 @@ function renderDashboard(){
    else if(p.server==="opp"){if(p.winner==="me")mrw++;else mrl++}
  });
  const gamesHtml=state.games.map((g,i)=>`<tr><td>G${i+1}</td><td>${g.me}</td><td>${g.opp}</td></tr>`).join("");
- const sceneCause=buildSceneCauseMatrix(points);
- const causeRows=Object.entries(sceneCause).sort((a,b)=>Object.values(b[1]).reduce((x,y)=>x+y,0)-Object.values(a[1]).reduce((x,y)=>x+y,0));
  const combos=topCombos(points);
  $("dashSub").textContent=`${state.date||"日付未設定"}　｜　${state.me} vs ${state.opp}${state.matchMemo?"　｜　"+state.matchMemo:""}`;
  const page1=`<div class="dash-page active" id="dashPage1">
@@ -405,25 +404,46 @@ function renderDashboard(){
    <div class="dash-card" style="margin-top:8px"><h3>ゲーム別スコア</h3><table class="dash-table"><tr><th>G</th><th>${escapeHtml(state.me)}</th><th>${escapeHtml(state.opp)}</th></tr>${gamesHtml}</table></div>
    <div class="dash-footer">スクリーンショット用：このページを1枚目として保存してください。</div>
  </div>`;
- const causeRowsHtml=causeRows.map(([cause,v])=>`<tr><td>${escapeHtml(cause)}</td><td>${v.sW}</td><td>${v.sL}</td><td>${v.rW}</td><td>${v.rL}</td><td class="total">${v.sW+v.sL+v.rW+v.rL}</td></tr>`).join("");
- const comboHtml=combos.map((x,i)=>`<tr><td>${i+1}</td><td><span class="scene-tag">${x.scene}</span></td><td>${x.ball}</td><td>${x.result}</td><td>${escapeHtml(x.cause)}</td><td><b>${x.n}</b></td></tr>`).join("")||`<tr><td colspan="6" class="muted">まだ記録がありません</td></tr>`;
+
+ const scoreCombos=combos.filter(x=>x.result==="得点");
+ const lossCombos=combos.filter(x=>x.result==="失点");
+ const scoreCauseRows=Object.entries(buildSceneCauseMatrix(points)).map(([cause,v])=>({cause,v,total:v.sW+v.rW})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+ const lossCauseRows=Object.entries(buildSceneCauseMatrix(points)).map(([cause,v])=>({cause,v,total:v.sL+v.rL})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+ const scoreHtml=scoreCauseRows.map(x=>`<tr><td>${escapeHtml(x.cause)}</td><td>${x.v.sW}</td><td>${x.v.rW}</td><td class="total">${x.total}</td></tr>`).join("")||`<tr><td colspan="4" class="muted">まだ得点記録がありません</td></tr>`;
+ const lossHtml=lossCauseRows.map(x=>`<tr><td>${escapeHtml(x.cause)}</td><td>${x.v.sL}</td><td>${x.v.rL}</td><td class="total">${x.total}</td></tr>`).join("")||`<tr><td colspan="4" class="muted">まだ失点記録がありません</td></tr>`;
+ const scoreComboHtml=scoreCombos.map((x,i)=>`<tr><td>${i+1}</td><td>${x.scene}</td><td>${x.ball}</td><td>${escapeHtml(x.cause)}</td><td><b>${x.n}</b></td></tr>`).join("")||`<tr><td colspan="5" class="muted">まだ得点記録がありません</td></tr>`;
+ const lossComboHtml=lossCombos.map((x,i)=>`<tr><td>${i+1}</td><td>${x.scene}</td><td>${x.ball}</td><td>${escapeHtml(x.cause)}</td><td><b>${x.n}</b></td></tr>`).join("")||`<tr><td colspan="5" class="muted">まだ失点記録がありません</td></tr>`;
  const page2=`<div class="dash-page" id="dashPage2">
-   <div class="dash-section-title">③ サーブ／レシーブ × 得失点の原因</div>
-   <div class="dash-note">「サーブ得」は自分がサーブして得点、「レシーブ得」は自分がレシーブして得点。失点も同様です。</div>
-   <table class="cross-table cause-matrix"><tr><th>原因</th><th>サーブ<br>得</th><th>サーブ<br>失</th><th>レシーブ<br>得</th><th>レシーブ<br>失</th><th>計</th></tr>${causeRowsHtml||`<tr><td colspan="6" class="muted">まだ記録がありません</td></tr>`}</table>
-   <div class="dash-section-title">④ 場面 × 何球目 × 原因：多かった組み合わせ TOP10</div>
-   <div class="dash-note">「どの場面で、何球目に、どんな原因で得失点したか」を一度に確認できます。</div>
-   <table class="combo-table"><tr><th>#</th><th>場面</th><th>球数</th><th>得失</th><th>原因</th><th>回数</th></tr>${comboHtml}</table>
+   <div class="dash-section-title">③ 原因分析</div>
+   <div class="cause-tabs"><button id="causeTabScore" class="active">得点原因</button><button id="causeTabLoss">失点原因</button></div>
+   <div id="causeWindowScore" class="cause-window">
+     <div class="dash-note">自分が得点したポイントだけを表示します。サーブ／レシーブと原因を分けて確認できます。</div>
+     <table class="cross-table cause-matrix"><tr><th>得点原因</th><th>サーブ<br>得点</th><th>レシーブ<br>得点</th><th>合計</th></tr>${scoreHtml}</table>
+     <div class="dash-section-title">得点：サーブ／レシーブ × 何球目 × 原因</div>
+     <table class="combo-table"><tr><th>#</th><th>場面</th><th>球数</th><th>原因</th><th>回数</th></tr>${scoreComboHtml}</table>
+   </div>
+   <div id="causeWindowLoss" class="cause-window hidden">
+     <div class="dash-note">自分が失点したポイントだけを表示します。サーブ／レシーブと原因を分けて確認できます。</div>
+     <table class="cross-table cause-matrix"><tr><th>失点原因</th><th>サーブ<br>失点</th><th>レシーブ<br>失点</th><th>合計</th></tr>${lossHtml}</table>
+     <div class="dash-section-title">失点：サーブ／レシーブ × 何球目 × 原因</div>
+     <table class="combo-table"><tr><th>#</th><th>場面</th><th>球数</th><th>原因</th><th>回数</th></tr>${lossComboHtml}</table>
+   </div>
    <div class="dash-card" style="margin-top:8px"><h3>ゲーム別 サーブ／レシーブ得失点</h3><table class="dash-table"><tr><th>G</th><th>自分サーブ<br>得-失</th><th>自分レシーブ<br>得-失</th></tr>${state.games.map((g,i)=>{const x=pointStatsForGame(g);return `<tr><td>G${i+1}</td><td>${x.msw}-${x.msl}</td><td>${x.mrw}-${x.mrl}</td></tr>`}).join("")}</table></div>
-   <div class="dash-footer">スクリーンショット用：このページを2枚目として保存してください。</div>
+   <div class="dash-footer">スクリーンショット用：このページを2枚目として保存してください。上の「得点原因／失点原因」で切り替えて確認できます。</div>
  </div>`;
  $("dashboardContent").innerHTML=`<div class="dash-nav"><button id="dashTab1" class="active">1枚目：球数分析</button><button id="dashTab2">2枚目：原因分析</button></div>${page1}${page2}`;
  $("dashTab1").onclick=()=>switchDashPage(1);$("dashTab2").onclick=()=>switchDashPage(2);
+ $("causeTabScore").onclick=()=>switchCauseWindow("score");$("causeTabLoss").onclick=()=>switchCauseWindow("loss");
  $("dashboardModal").classList.remove("hidden");
 }
 function switchDashPage(n){
  document.querySelectorAll(".dash-page").forEach((el,i)=>el.classList.toggle("active",i===n-1));
  [$("dashTab1"),$("dashTab2")].forEach((b,i)=>b.classList.toggle("active",i===n-1));
+}
+function switchCauseWindow(which){
+ const score=which==="score";
+ $("causeWindowScore").classList.toggle("hidden",!score);$("causeWindowLoss").classList.toggle("hidden",score);
+ $("causeTabScore").classList.toggle("active",score);$("causeTabLoss").classList.toggle("active",!score);
 }
 function renderMatchList(){
  const list=getLibrary();

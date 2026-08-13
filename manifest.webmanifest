@@ -1,9 +1,1 @@
-{
-  "name":"卓球 試合分析ツール",
-  "short_name":"卓球分析",
-  "start_url":"./index.html",
-  "display":"standalone",
-  "background_color":"#f3f4f6",
-  "theme_color":"#111827",
-  "lang":"ja-JP"
-}
+{"name":"卓球 試合分析ツール","short_name":"卓球分析","start_url":"./index.html","display":"standalone","lang":"ja-JP"}
